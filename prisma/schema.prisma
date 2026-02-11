@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MOD
+  ADMIN
+}
+
+enum VoteTargetType {
+  THREAD
+  COMMENT
+}
+
+enum ReportStatus {
+  OPEN
+  DONE
+}
+
+enum EntityType {
+  PERSON
+  ORG
+  PLACE
+  DATE
+  EVENT
+  SYMBOL
+  TERM
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  passwordHash      String?
+  role              Role     @default(USER)
+  reputation        Int      @default(0)
+  approvedUnderSeal Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  threads           Thread[]
+  comments          Comment[]
+  votes             Vote[]
+  reports           Report[]
+  auditLogs         AuditLog[]
+  puzzleProgress    UserPuzzleProgress[]
+  accounts          Account[]
+  sessions          Session[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  accessLevel Int
+  threads     Thread[]
+}
+
+model Thread {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  categoryId  String
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isLocked    Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  isEphemeral Boolean  @default(false)
+  expiresAt   DateTime?
+
+  category    Category @relation(fields: [categoryId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+  entities    ThreadEntity[]
+  anomaly     AnomalyScore?
+
+  @@index([categoryId, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  threadId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  thread    Thread   @relation(fields: [threadId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model Vote {
+  id         String         @id @default(cuid())
+  userId     String
+  targetType VoteTargetType
+  targetId   String
+  value      Int
+
+  user       User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, targetType, targetId])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  targetType VoteTargetType
+  targetId   String
+  reason     String
+  createdAt  DateTime     @default(now())
+  status     ReportStatus @default(OPEN)
+
+  reporter   User         @relation(fields: [reporterId], references: [id])
+}
+
+model Entity {
+  id         String       @id @default(cuid())
+  type       EntityType
+  value      String
+  normalized String
+  threads    ThreadEntity[]
+
+  @@index([normalized])
+}
+
+model ThreadEntity {
+  threadId String
+  entityId String
+  weight   Float
+
+  thread   Thread @relation(fields: [threadId], references: [id])
+  entity   Entity @relation(fields: [entityId], references: [id])
+
+  @@id([threadId, entityId])
+}
+
+model AnomalyScore {
+  threadId    String   @id
+  score       Float
+  factors     Json
+  computedAt  DateTime @default(now())
+
+  thread      Thread   @relation(fields: [threadId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  action    String
+  meta      Json
+  createdAt DateTime @default(now())
+
+  actor     User     @relation(fields: [actorId], references: [id])
+}
+
+model PuzzleToken {
+  id           String   @id @default(cuid())
+  languageCode String
+  script       String
+  token        String
+  normalized   String
+  weight       Float    @default(1)
+  hintLevel    Int      @default(1)
+  isActive     Boolean  @default(true)
+
+  progress     UserPuzzleProgress[]
+
+  @@index([normalized])
+}
+
+model UserPuzzleProgress {
+  userId       String
+  tokenId      String
+  discoveredAt DateTime @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+  token        PuzzleToken @relation(fields: [tokenId], references: [id])
+
+  @@id([userId, tokenId])
+}
+
+// NextAuth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
