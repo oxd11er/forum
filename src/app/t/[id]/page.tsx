@@ -53,7 +53,7 @@ export default async function ThreadPage({ params }: { params: { id: string } })
           {thread.comments.map((c) => (
             <div key={c.id} className="rounded border border-white/10 p-2">
               <div className="font-mono text-xs text-paper/60">{c.author.name} · {c.createdAt.toISOString()}</div>
-              <p className="mt-1 text-sm">{c.body}</p>
+              <p className="mt-1 text-sm">{c.body ?? c.content}</p>
             </div>
           ))}
         </div>

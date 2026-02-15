@@ -26,9 +26,14 @@ async function main() {
 
   await prisma.category.createMany({
     data: [
-      { name: 'Open Archive', slug: 'open-archive', accessLevel: 0 },
-      { name: 'Sealed', slug: 'sealed', accessLevel: 1 },
-      { name: 'Under Seal', slug: 'under-seal', accessLevel: 2 }
+      { name: 'Open Archive', slug: 'open-archive', accessLevel: 0, kind: 'FORUM' },
+      { name: 'Sealed', slug: 'sealed', accessLevel: 1, kind: 'FORUM' },
+      { name: 'Under Seal', slug: 'under-seal', accessLevel: 2, kind: 'FORUM' },
+      { name: 'Countries', slug: 'countries', accessLevel: 0, kind: 'ARCHIVE' },
+      { name: 'International', slug: 'international', accessLevel: 0, kind: 'ARCHIVE' },
+      { name: 'Religion', slug: 'religion', accessLevel: 0, kind: 'ARCHIVE' },
+      { name: 'Space', slug: 'space', accessLevel: 0, kind: 'ARCHIVE' },
+      { name: 'Other', slug: 'other', accessLevel: 0, kind: 'ARCHIVE' }
     ],
     skipDuplicates: true
   });
@@ -56,41 +61,29 @@ async function main() {
     const thread = await prisma.thread.create({ data: { title, body, categoryId: open.id, authorId: Math.random() > 0.5 ? user1.id : user2.id } });
     const entities = extractEntities(`${title} ${body}`);
     for (const e of entities) {
-      const ent = await prisma.entity.upsert({
-        where: { id: `${e.type}-${e.normalized}` },
-        update: {},
-        create: { id: `${e.type}-${e.normalized}`, ...e }
-      }).catch(async () => prisma.entity.findFirstOrThrow({ where: { type: e.type, normalized: e.normalized } }));
+      const existing = await prisma.entity.findFirst({ where: { type: e.type, normalized: e.normalized } });
+      const ent = existing ?? await prisma.entity.create({ data: e });
       await prisma.threadEntity.upsert({ where: { threadId_entityId: { threadId: thread.id, entityId: ent.id } }, update: { weight: 1 }, create: { threadId: thread.id, entityId: ent.id, weight: 1 } });
     }
     const score = computeAnomalyScore({ uniqueEntities: entities.length, numEntities: entities.length + 2, crossLinks: Math.floor(entities.length / 2), penalties: 0.2, reasons: ['baseline archival uncertainty'] });
     await prisma.anomalyScore.create({ data: { threadId: thread.id, score: score.score, factors: score.factors } });
   }
 
-  for (const [languageCode, script, token] of tokenData) {
-    await prisma.puzzleToken.create({
-      data: {
-        languageCode,
-        script,
-        token,
-        normalized: normalizeToken(token),
-        hintLevel: 1,
-        weight: 1
-      }
-    }).catch(() => null);
-  }
-
-  const archivist = await prisma.user.findUniqueOrThrow({ where: { email: 'archivist@example.local' } });
-  await prisma.thread.create({
+  const archiveCategory = await prisma.category.findUniqueOrThrow({ where: { slug: 'international' } });
+  await prisma.discussion.create({
     data: {
-      title: 'Daily Archivist Note',
-      body: 'Archive handling note: compare margins, preserve calm language, and avoid certainty claims.',
-      categoryId: open.id,
-      authorId: archivist.id,
-      isEphemeral: true,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      title: 'Documented weather signal catalog',
+      description: 'Collecting neutral source links and approved docs related to recurring atmospheric notes.',
+      categoryId: archiveCategory.id,
+      authorId: user1.id
     }
   }).catch(() => null);
+
+  for (const [languageCode, script, token] of tokenData) {
+    await prisma.puzzleToken.create({
+      data: { languageCode, script, token, normalized: normalizeToken(token), hintLevel: 1, weight: 1 }
+    }).catch(() => null);
+  }
 
   await prisma.auditLog.create({ data: { actorId: admin.id, action: 'seed_completed', meta: { ok: true } } });
 }

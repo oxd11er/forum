@@ -7,6 +7,7 @@ A calm, archival forum for anomalies/patterns/coincidences.
 - Prisma + PostgreSQL
 - NextAuth Credentials
 - Tailwind CSS
+- Yandex Object Storage (S3 compatible)
 - Vitest
 
 ## Project structure
@@ -15,7 +16,7 @@ A calm, archival forum for anomalies/patterns/coincidences.
 - `src/lib` — server/client utilities, actions, auth, safety logic
 - `prisma/schema.prisma` — database schema
 - `prisma/seed.ts` — seed data
-- `docker-compose.yml` — PostgreSQL service
+- `docker-compose.yml` — PostgreSQL + app service
 
 ## 1) Clone
 ```bash
@@ -23,29 +24,42 @@ git clone <YOUR_REPO_URL> forum
 cd forum
 ```
 
-## 2) Start PostgreSQL (Docker)
-```bash
-docker compose up -d db
-```
-
-## 3) Configure env
+## 2) Configure env
 ```bash
 cp .env.example .env
 ```
 
-## 4) Install and setup DB
+## 3) Start services
 ```bash
+docker compose up -d db
 npm install
 npx prisma generate
 npx prisma migrate dev --name init
 npm run seed
-```
-
-## 5) Run app
-```bash
 npm run dev
 ```
+
 Open `http://localhost:3000`.
+
+## Archive Documents section
+- Public page: `/archive`
+- Discussion page: `/archive/discussion/{id}`
+- Endpoints:
+  - `POST /archive/discussion/create`
+  - `POST /archive/file/upload`
+  - `POST /archive/link/add`
+  - `GET /archive/discussion/{id}`
+  - `GET /archive/discussions`
+  - `POST /admin/file/approve`
+  - `POST /admin/link/approve`
+
+### Yandex Object Storage vars
+- `YANDEX_STORAGE_ENDPOINT`
+- `YANDEX_STORAGE_BUCKET`
+- `YANDEX_STORAGE_ACCESS_KEY`
+- `YANDEX_STORAGE_SECRET_KEY`
+
+Files are uploaded only to Yandex Object Storage (no local file storage in app/container).
 
 ## Test accounts (after seed)
 - admin@example.local / password123
@@ -56,12 +70,6 @@ Open `http://localhost:3000`.
 ```bash
 npm run test
 ```
-
-## Notes
-- Daily ephemeral thread lifecycle helpers:
-  - `runDailyArchivistThread()`
-  - `expireEphemeralThreads()`
-- For production, execute those with a scheduled worker/cron.
 
 ## Windows PowerShell note
 If `npm`/`npx` are blocked by execution policy, run:

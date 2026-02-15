@@ -26,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/c/under-seal">Under Seal</Link>
             <Link href="/search" className="inline-flex items-center gap-2"><Search size={14} />Search</Link>
             <Link href="/protocol">About Protocol</Link>
+            <Link href="/archive">Архив документов</Link>
           </nav>
           <button
             className="mt-6 rounded border border-white/20 px-2 py-1 text-xs"

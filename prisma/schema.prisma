@@ -33,6 +33,26 @@ enum EntityType {
   TERM
 }
 
+enum CategoryKind {
+  FORUM
+  ARCHIVE
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum LinkPlatform {
+  youtube
+  wikipedia
+  vk
+  rutube
+  vimeo
+  other
+}
+
 model User {
   id                String   @id @default(cuid())
   name              String
@@ -49,6 +69,9 @@ model User {
   reports           Report[]
   auditLogs         AuditLog[]
   puzzleProgress    UserPuzzleProgress[]
+  discussions       Discussion[]
+  files             File[]
+  links             Link[]
   accounts          Account[]
   sessions          Session[]
 }
@@ -57,8 +80,10 @@ model Category {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
-  accessLevel Int
+  accessLevel Int      @default(0)
+  kind        CategoryKind @default(FORUM)
   threads     Thread[]
+  discussions Discussion[]
 }
 
 model Thread {
@@ -83,17 +108,74 @@ model Thread {
   @@index([categoryId, createdAt])
 }
 
-model Comment {
-  id        String   @id @default(cuid())
-  threadId  String
-  authorId  String
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
+model Discussion {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  categoryId  String
+  authorId    String
+  createdAt   DateTime @default(now())
 
-  thread    Thread   @relation(fields: [threadId], references: [id])
-  author    User     @relation(fields: [authorId], references: [id])
+  category    Category @relation(fields: [categoryId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id])
+  files       File[]
+  links       Link[]
+  comments    Comment[]
+
+  @@index([categoryId, createdAt])
+}
+
+model File {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  url          String
+  size         Int
+  mimeType     String
+  status       ApprovalStatus @default(pending)
+  authorId     String
+  discussionId String
+  createdAt    DateTime @default(now())
+
+  author       User       @relation(fields: [authorId], references: [id])
+  discussion   Discussion @relation(fields: [discussionId], references: [id])
+
+  @@index([discussionId, status])
+}
+
+model Link {
+  id           String   @id @default(cuid())
+  url          String
+  platform     LinkPlatform
+  title        String
+  status       ApprovalStatus @default(pending)
+  authorId     String
+  discussionId String
+  createdAt    DateTime @default(now())
+
+  author       User       @relation(fields: [authorId], references: [id])
+  discussion   Discussion @relation(fields: [discussionId], references: [id])
+
+  @@index([discussionId, status])
+}
+
+model Comment {
+  id           String   @id @default(cuid())
+  threadId     String?
+  discussionId String?
+  authorId     String
+  body         String?
+  content      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
+
+  thread       Thread?      @relation(fields: [threadId], references: [id])
+  discussion   Discussion?  @relation(fields: [discussionId], references: [id])
+  author       User         @relation(fields: [authorId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([discussionId, createdAt])
 }
 
 model Vote {
@@ -186,7 +268,6 @@ model UserPuzzleProgress {
   @@id([userId, tokenId])
 }
 
-// NextAuth models
 model Account {
   id                String  @id @default(cuid())
   userId            String

@@ -3,7 +3,7 @@ import { ThreadCard } from '@/components/thread-card';
 import { notFound } from 'next/navigation';
 
 export default async function CategoryPage({ params }: { params: { slug: string } }) {
-  const category = await prisma.category.findUnique({ where: { slug: params.slug } });
+  const category = await prisma.category.findFirst({ where: { slug: params.slug, kind: 'FORUM' } });
   if (!category) notFound();
   const threads = await prisma.thread.findMany({ where: { categoryId: category.id, isDeleted: false }, include: { anomaly: true }, orderBy: { createdAt: 'desc' } });
 

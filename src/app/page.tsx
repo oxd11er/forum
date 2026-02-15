@@ -5,7 +5,7 @@ import { ThreadComposer } from '@/components/thread-composer';
 export default async function HomePage() {
   const [threads, categories] = await Promise.all([
     prisma.thread.findMany({ where: { isDeleted: false, OR: [{ isEphemeral: false }, { expiresAt: { gt: new Date() } }] }, include: { anomaly: true }, orderBy: { createdAt: 'desc' }, take: 25 }),
-    prisma.category.findMany({ orderBy: { accessLevel: 'asc' } })
+    prisma.category.findMany({ where: { kind: 'FORUM' }, orderBy: { accessLevel: 'asc' } })
   ]);
 
   return (
