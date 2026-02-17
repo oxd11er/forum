@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MOD
+  ADMIN
+}
+
+enum VoteTargetType {
+  THREAD
+  COMMENT
+}
+
+enum ReportStatus {
+  OPEN
+  DONE
+}
+
+enum EntityType {
+  PERSON
+  ORG
+  PLACE
+  DATE
+  EVENT
+  SYMBOL
+  TERM
+}
+
+enum CategoryKind {
+  FORUM
+  ARCHIVE
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum LinkPlatform {
+  youtube
+  wikipedia
+  vk
+  rutube
+  vimeo
+  other
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  passwordHash      String?
+  role              Role     @default(USER)
+  reputation        Int      @default(0)
+  approvedUnderSeal Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  threads           Thread[]
+  comments          Comment[]
+  votes             Vote[]
+  reports           Report[]
+  auditLogs         AuditLog[]
+  puzzleProgress    UserPuzzleProgress[]
+  discussions       Discussion[]
+  files             File[]
+  links             Link[]
+  accounts          Account[]
+  sessions          Session[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  accessLevel Int      @default(0)
+  kind        CategoryKind @default(FORUM)
+  threads     Thread[]
+  discussions Discussion[]
+}
+
+model Thread {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  categoryId  String
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isLocked    Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  isEphemeral Boolean  @default(false)
+  expiresAt   DateTime?
+
+  category    Category @relation(fields: [categoryId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+  entities    ThreadEntity[]
+  anomaly     AnomalyScore?
+
+  @@index([categoryId, createdAt])
+}
+
+model Discussion {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  categoryId  String
+  authorId    String
+  createdAt   DateTime @default(now())
+
+  category    Category @relation(fields: [categoryId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id])
+  files       File[]
+  links       Link[]
+  comments    Comment[]
+
+  @@index([categoryId, createdAt])
+}
+
+model File {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  url          String
+  size         Int
+  mimeType     String
+  status       ApprovalStatus @default(pending)
+  authorId     String
+  discussionId String
+  createdAt    DateTime @default(now())
+
+  author       User       @relation(fields: [authorId], references: [id])
+  discussion   Discussion @relation(fields: [discussionId], references: [id])
+
+  @@index([discussionId, status])
+}
+
+model Link {
+  id           String   @id @default(cuid())
+  url          String
+  platform     LinkPlatform
+  title        String
+  status       ApprovalStatus @default(pending)
+  authorId     String
+  discussionId String
+  createdAt    DateTime @default(now())
+
+  author       User       @relation(fields: [authorId], references: [id])
+  discussion   Discussion @relation(fields: [discussionId], references: [id])
+
+  @@index([discussionId, status])
+}
+
+model Comment {
+  id           String   @id @default(cuid())
+  threadId     String?
+  discussionId String?
+  authorId     String
+  body         String?
+  content      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
+
+  thread       Thread?      @relation(fields: [threadId], references: [id])
+  discussion   Discussion?  @relation(fields: [discussionId], references: [id])
+  author       User         @relation(fields: [authorId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([discussionId, createdAt])
+}
+
+model Vote {
+  id         String         @id @default(cuid())
+  userId     String
+  targetType VoteTargetType
+  targetId   String
+  value      Int
+
+  user       User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, targetType, targetId])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  targetType VoteTargetType
+  targetId   String
+  reason     String
+  createdAt  DateTime     @default(now())
+  status     ReportStatus @default(OPEN)
+
+  reporter   User         @relation(fields: [reporterId], references: [id])
+}
+
+model Entity {
+  id         String       @id @default(cuid())
+  type       EntityType
+  value      String
+  normalized String
+  threads    ThreadEntity[]
+
+  @@index([normalized])
+}
+
+model ThreadEntity {
+  threadId String
+  entityId String
+  weight   Float
+
+  thread   Thread @relation(fields: [threadId], references: [id])
+  entity   Entity @relation(fields: [entityId], references: [id])
+
+  @@id([threadId, entityId])
+}
+
+model AnomalyScore {
+  threadId    String   @id
+  score       Float
+  factors     Json
+  computedAt  DateTime @default(now())
+
+  thread      Thread   @relation(fields: [threadId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  action    String
+  meta      Json
+  createdAt DateTime @default(now())
+
+  actor     User     @relation(fields: [actorId], references: [id])
+}
+
+model PuzzleToken {
+  id           String   @id @default(cuid())
+  languageCode String
+  script       String
+  token        String
+  normalized   String
+  weight       Float    @default(1)
+  hintLevel    Int      @default(1)
+  isActive     Boolean  @default(true)
+
+  progress     UserPuzzleProgress[]
+
+  @@index([normalized])
+}
+
+model UserPuzzleProgress {
+  userId       String
+  tokenId      String
+  discoveredAt DateTime @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+  token        PuzzleToken @relation(fields: [tokenId], references: [id])
+
+  @@id([userId, tokenId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
